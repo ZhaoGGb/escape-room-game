@@ -1,0 +1,1860 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>3D密室逃脱 - 沉浸式体验</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: #0a0a0a;
+            color: #fff;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        .ui-overlay {
+            position: fixed;
+            z-index: 100;
+            pointer-events: none;
+        }
+
+        .ui-overlay * {
+            pointer-events: auto;
+        }
+
+        /* 顶部控制栏 */
+        .top-controls {
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(180deg, rgba(0,0,0,0.7) 0%, transparent 100%);
+        }
+
+        .game-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
+            color: #00ff88;
+            letter-spacing: 2px;
+        }
+
+        .view-controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .ctrl-btn {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            border: 2px solid rgba(0, 255, 136, 0.5);
+            background: rgba(0, 0, 0, 0.6);
+            color: #00ff88;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .ctrl-btn:hover {
+            background: rgba(0, 255, 136, 0.2);
+            border-color: #00ff88;
+            transform: scale(1.1);
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.4);
+        }
+
+        .ctrl-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* 底部信息栏 */
+        .bottom-info {
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 20px;
+            background: linear-gradient(0deg, rgba(0,0,0,0.8) 0%, transparent 100%);
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+
+        .hint-text {
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.7);
+            max-width: 300px;
+            line-height: 1.5;
+        }
+
+        .stats {
+            display: flex;
+            gap: 20px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #00ff88;
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.6);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* 物品信息弹窗 */
+        .item-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.8);
+            background: rgba(10, 15, 20, 0.95);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            border-radius: 20px;
+            padding: 30px;
+            min-width: 320px;
+            max-width: 90vw;
+            z-index: 200;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(20px);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(0, 255, 136, 0.1);
+        }
+
+        .item-modal.active {
+            opacity: 1;
+            visibility: visible;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(0, 255, 136, 0.2);
+        }
+
+        .modal-title {
+            font-size: 1.3rem;
+            color: #00ff88;
+            font-weight: bold;
+        }
+
+        .close-btn {
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            border: none;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .close-btn:hover {
+            background: rgba(255, 100, 100, 0.3);
+            transform: rotate(90deg);
+        }
+
+        .modal-content {
+            color: rgba(255, 255, 255, 0.85);
+            line-height: 1.8;
+            font-size: 0.95rem;
+        }
+
+        .modal-content p {
+            margin-bottom: 15px;
+        }
+
+        .modal-hint {
+            background: rgba(0, 255, 136, 0.1);
+            border-left: 3px solid #00ff88;
+            padding: 12px 15px;
+            margin-top: 20px;
+            border-radius: 0 8px 8px 0;
+            font-size: 0.9rem;
+        }
+
+        .password-display {
+            background: rgba(0, 0, 0, 0.5);
+            border: 2px solid #00ff88;
+            border-radius: 10px;
+            padding: 15px;
+            font-size: 2.5rem;
+            text-align: center;
+            letter-spacing: 15px;
+            color: #00ff88;
+            margin: 20px 0;
+            font-family: monospace;
+            text-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
+        }
+
+        .keypad {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            max-width: 250px;
+            margin: 0 auto;
+        }
+
+        .key-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 15px;
+            font-size: 1.3rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .key-btn:hover {
+            background: rgba(0, 255, 136, 0.3);
+            border-color: #00ff88;
+            transform: scale(1.05);
+        }
+
+        .key-btn:active {
+            transform: scale(0.95);
+        }
+
+        .key-clear {
+            background: rgba(255, 100, 100, 0.2);
+            border-color: rgba(255, 100, 100, 0.5);
+        }
+
+        .key-clear:hover {
+            background: rgba(255, 100, 100, 0.4);
+            border-color: #ff6464;
+        }
+
+        .key-enter {
+            background: rgba(0, 255, 136, 0.2);
+            border-color: rgba(0, 255, 136, 0.5);
+        }
+
+        .key-enter:hover {
+            background: rgba(0, 255, 136, 0.4);
+            border-color: #00ff88;
+        }
+
+        /* 加载界面 */
+        .loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #0a0a0a;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            transition: opacity 0.5s ease;
+        }
+
+        .loading-screen.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .loading-title {
+            font-size: 2rem;
+            color: #00ff88;
+            margin-bottom: 40px;
+            text-shadow: 0 0 30px rgba(0, 255, 136, 0.5);
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .loading-progress {
+            width: 300px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .loading-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff88, #00cc6a);
+            width: 0%;
+            transition: width 0.3s ease;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
+        }
+
+        .loading-text {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.9rem;
+        }
+
+        /* 收藏品面板 */
+        .inventory-panel {
+            position: fixed;
+            right: -400px;
+            top: 0;
+            bottom: 0;
+            width: 350px;
+            background: rgba(10, 15, 20, 0.95);
+            border-left: 1px solid rgba(0, 255, 136, 0.2);
+            z-index: 150;
+            transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(20px);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .inventory-panel.active {
+            right: 0;
+        }
+
+        .inventory-header {
+            padding: 25px;
+            border-bottom: 1px solid rgba(0, 255, 136, 0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .inventory-title {
+            font-size: 1.2rem;
+            color: #00ff88;
+            font-weight: bold;
+        }
+
+        .inventory-content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .inventory-empty {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.5);
+            padding: 40px 20px;
+        }
+
+        .inventory-item {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(0, 255, 136, 0.2);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .inventory-item:hover {
+            background: rgba(0, 255, 136, 0.1);
+            border-color: #00ff88;
+            transform: translateX(-5px);
+        }
+
+        .inventory-item-icon {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .inventory-item-name {
+            font-weight: bold;
+            color: #fff;
+            margin-bottom: 5px;
+        }
+
+        .inventory-item-desc {
+            font-size: 0.85rem;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        /* 操作提示 */
+        .action-hint {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 255, 136, 0.9);
+            color: #000;
+            padding: 12px 25px;
+            border-radius: 25px;
+            font-weight: bold;
+            font-size: 0.9rem;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 150;
+        }
+
+        .action-hint.visible {
+            opacity: 1;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .game-title {
+                font-size: 1.1rem;
+            }
+
+            .ctrl-btn {
+                width: 40px;
+                height: 40px;
+                font-size: 1rem;
+            }
+
+            .bottom-info {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 15px;
+            }
+
+            .hint-text {
+                max-width: 100%;
+            }
+
+            .stats {
+                width: 100%;
+                justify-content: space-around;
+            }
+
+            .item-modal {
+                min-width: 280px;
+                padding: 20px;
+            }
+
+            .inventory-panel {
+                width: 100%;
+                right: -100%;
+            }
+        }
+
+        /* 成功提示 */
+        .success-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 500;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.5s ease;
+        }
+
+        .success-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .success-icon {
+            font-size: 5rem;
+            margin-bottom: 30px;
+            animation: bounce 0.6s ease infinite;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+
+        .success-title {
+            font-size: 2.5rem;
+            color: #00ff88;
+            margin-bottom: 20px;
+            text-shadow: 0 0 30px rgba(0, 255, 136, 0.5);
+        }
+
+        .success-text {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 1.1rem;
+            margin-bottom: 40px;
+        }
+
+        .restart-btn {
+            background: linear-gradient(135deg, #00ff88, #00cc6a);
+            border: none;
+            color: #000;
+            padding: 15px 40px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .restart-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 10px 30px rgba(0, 255, 136, 0.4);
+        }
+
+        /* 控制说明 */
+        .controls-help {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.7);
+            z-index: 100;
+        }
+
+        .controls-help p {
+            margin: 5px 0;
+        }
+
+        .controls-help span {
+            color: #00ff88;
+        }
+    </style>
+</head>
+<body>
+    <!-- 加载界面 -->
+    <div class="loading-screen" id="loadingScreen">
+        <div class="loading-title">🔐 密室逃脱</div>
+        <div class="loading-progress">
+            <div class="loading-bar" id="loadingBar"></div>
+        </div>
+        <div class="loading-text" id="loadingText">正在初始化场景...</div>
+    </div>
+
+    <!-- 3D场景容器 -->
+    <div id="canvas-container"></div>
+
+    <!-- 顶部控制栏 -->
+    <div class="ui-overlay top-controls">
+        <div class="game-title">🔐 3D密室逃脱</div>
+        <div class="view-controls">
+            <button class="ctrl-btn" id="resetViewBtn" title="重置视角">🔄</button>
+            <button class="ctrl-btn" id="inventoryBtn" title="物品栏">🎒</button>
+            <button class="ctrl-btn" id="helpBtn" title="帮助">❓</button>
+        </div>
+    </div>
+
+    <!-- 底部信息栏 -->
+    <div class="ui-overlay bottom-info">
+        <div class="hint-text">
+            🖱️ 左键拖动旋转 | 滚轮缩放 | 右键平移 | 点击物品查看详情
+        </div>
+        <div class="stats">
+            <div class="stat-item">
+                <div class="stat-value" id="fpsValue">60</div>
+                <div class="stat-label">FPS</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="objectsCount">0</div>
+                <div class="stat-label">物体数</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 控制说明 -->
+    <div class="controls-help">
+        <p><span>🖱️ 拖动</span> 旋转视角</p>
+        <p><span>🔍 滚轮</span> 缩放查看</p>
+        <p><span>👆 点击</span> 物品交互</p>
+    </div>
+
+    <!-- 物品详情弹窗 -->
+    <div class="item-modal" id="itemModal">
+        <div class="modal-header">
+            <div class="modal-title" id="modalTitle">物品名称</div>
+            <button class="close-btn" id="closeModal">×</button>
+        </div>
+        <div class="modal-content" id="modalContent">
+            <!-- 物品详情内容 -->
+        </div>
+    </div>
+
+    <!-- 密码输入模态框 -->
+    <div class="item-modal" id="passwordModal">
+        <div class="modal-header">
+            <div class="modal-title" id="passwordTitle">🔒 输入密码</div>
+            <button class="close-btn" id="closePassword">×</button>
+        </div>
+        <div class="modal-content">
+            <p id="passwordHint">请输入4位密码</p>
+            <div class="password-display" id="passwordDisplay">----</div>
+            <div class="keypad">
+                <button class="key-btn" data-digit="1">1</button>
+                <button class="key-btn" data-digit="2">2</button>
+                <button class="key-btn" data-digit="3">3</button>
+                <button class="key-btn" data-digit="4">4</button>
+                <button class="key-btn" data-digit="5">5</button>
+                <button class="key-btn" data-digit="6">6</button>
+                <button class="key-btn" data-digit="7">7</button>
+                <button class="key-btn" data-digit="8">8</button>
+                <button class="key-btn" data-digit="9">9</button>
+                <button class="key-btn key-clear" data-digit="clear">C</button>
+                <button class="key-btn" data-digit="0">0</button>
+                <button class="key-btn key-enter" data-digit="enter">✓</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 物品栏面板 -->
+    <div class="inventory-panel" id="inventoryPanel">
+        <div class="inventory-header">
+            <div class="inventory-title">🎒 收集的物品</div>
+            <button class="close-btn" id="closeInventory">×</button>
+        </div>
+        <div class="inventory-content" id="inventoryContent">
+            <div class="inventory-empty">
+                还没有收集任何物品<br>
+                探索房间来发现线索吧！
+            </div>
+        </div>
+    </div>
+
+    <!-- 操作提示 -->
+    <div class="action-hint" id="actionHint">点击物品进行交互</div>
+
+    <!-- 成功提示 -->
+    <div class="success-overlay" id="successOverlay">
+        <div class="success-icon">🎉</div>
+        <div class="success-title">成功逃脱！</div>
+        <div class="success-text">你发现了所有线索并成功打开了密室的门</div>
+        <button class="restart-btn" id="restartBtn">重新开始</button>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // ==================== 全局变量 ====================
+        let scene, camera, renderer, controls;
+        let raycaster, mouse;
+        let clock;
+        let interactiveObjects = [];
+        let collectedItems = [];
+        let isGameComplete = false;
+
+        // 随机密码
+        let drawerPassword = '';
+        let safePassword = '';
+        let doorPassword = '';
+
+        function generateRandomPassword() {
+            return Math.floor(1000 + Math.random() * 9000).toString();
+        }
+
+        function initRandomPasswords() {
+            drawerPassword = generateRandomPassword();
+            safePassword = generateRandomPassword();
+            doorPassword = generateRandomPassword();
+            console.log(`密码已生成 - 抽屉: ${drawerPassword}, 保险箱: ${safePassword}, 门: ${doorPassword}`);
+        }
+
+        // 物品数据
+        const itemData = {
+            'door': {
+                name: '🚪 卧室门',
+                description: '一扇厚重的木门，上面有密码锁和钥匙孔。需要密码和钥匙才能打开。',
+                hint: '找到密码和钥匙就能打开这扇门...',
+                canCollect: false
+            },
+            'window': {
+                name: '🪟 窗户',
+                description: '一扇被木板封死的窗户，外面是漆黑的夜晚。月光透过缝隙照射进来。',
+                hint: '窗户被封死了，但这是一个逃脱的线索...',
+                canCollect: false
+            },
+            'trash': {
+                name: '🗑️ 垃圾桶',
+                description: '一个普通的金属垃圾桶，桶内有揉皱的纸团。',
+                hint: '也许纸团上有什么信息？点击垃圾桶查看。',
+                canCollect: true,
+                collected: false
+            },
+            'paper': {
+                name: '📄 皱纸团',
+                description: `从垃圾桶里找到的纸团，上面潦草地写着数字：${drawerPassword.slice(0,1)}-${drawerPassword.slice(1,2)}-${drawerPassword.slice(2,3)}-${drawerPassword.slice(3,4)}`,
+                hint: '记住这个数字！也许这是某个锁的密码。',
+                canCollect: true,
+                collected: false
+            },
+            'bed': {
+                name: '🛏️ 床',
+                description: '一张凌乱的床，枕头下面压着一本日记。',
+                hint: '查看日记也许能获得重要信息。',
+                canCollect: false
+            },
+            'diary': {
+                name: '📔 日记本',
+                description: `日记的最后一页写着："记住，密码锁的顺序是反的..." 密码：${drawerPassword.slice(0,1)}-${drawerPassword.slice(1,2)}-${drawerPassword.slice(2,3)}-${drawerPassword.slice(3,4)}`,
+                hint: `密码顺序是反的！${drawerPassword.slice(0,1)}-${drawerPassword.slice(1,2)}-${drawerPassword.slice(2,3)}-${drawerPassword.slice(3,4)}反过来就是${doorPassword.slice(0,1)}-${doorPassword.slice(1,2)}-${doorPassword.slice(2,3)}-${doorPassword.slice(3,4)}`,
+                canCollect: true,
+                collected: false
+            },
+            'desk': {
+                name: '🪑 书桌',
+                description: '一张老旧的书桌，抽屉似乎被锁住了。',
+                hint: '抽屉需要钥匙才能打开。',
+                canCollect: false
+            },
+            'drawer': {
+                name: '🗝️ 抽屉锁',
+                description: '抽屉上有一个小锁孔，需要找到钥匙。',
+                hint: '钥匙可能藏在房间的某个地方。',
+                canCollect: false,
+                opened: false
+            },
+            'key': {
+                name: '🔑 小钥匙',
+                description: '在花盆底部发现的银色小钥匙，看起来可以打开什么东西。',
+                hint: '这把钥匙也许能打开抽屉！',
+                canCollect: true,
+                collected: false
+            },
+            'painting': {
+                name: '🖼️ 油画',
+                description: '一幅风景油画，画的是日落时的山脉。画框似乎有些松动。',
+                hint: '画框后面也许藏着什么秘密？',
+                canCollect: false
+            },
+            'safe': {
+                name: '🔒 保险箱',
+                description: '墙上的保险箱，需要输入4位密码才能打开。',
+                hint: '输入正确的密码试试看！',
+                canCollect: false,
+                opened: false
+            },
+            'plant': {
+                name: '🪴 盆栽',
+                description: '一盆枯萎的绿植，花盆里的土看起来被人翻动过。',
+                hint: '检查花盆里的土壤。',
+                canCollect: true,
+                collected: false
+            },
+            'safe_content': {
+                name: '🔑 门钥匙',
+                description: '保险箱里的金色钥匙！这一定是打开房门的钥匙！',
+                hint: '带着这把钥匙去开门吧！',
+                canCollect: true,
+                collected: false
+            },
+            'clock': {
+                name: '🕐 挂钟',
+                description: '一个停止的挂钟，指针停在7点20分。',
+                hint: '7:20...这个时间有什么特殊含义吗？',
+                canCollect: false
+            },
+            'lamp': {
+                name: '💡 台灯',
+                description: '一盏老式台灯，灯罩上积满了灰尘。',
+                hint: '灰尘里也许能提取到指纹...',
+                canCollect: false
+            }
+        };
+
+        // ==================== 初始化 ====================
+        function init() {
+            // 初始化随机密码
+            initRandomPasswords();
+            itemData['safe'].hint = `输入密码 ${safePassword.slice(0,1)}-${safePassword.slice(1,2)}-${safePassword.slice(2,3)}-${safePassword.slice(3,4)} 试试看！`;
+
+            // 创建场景
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0a0a);
+            scene.fog = new THREE.Fog(0x0a0a0a, 5, 25);
+
+            // 创建相机
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(4, 3, 5);
+
+            // 创建渲染器
+            renderer = new THREE.WebGLRenderer({ 
+                antialias: true,
+                powerPreference: "high-performance"
+            });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.2;
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            // 创建控制器
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.minDistance = 2;
+            controls.maxDistance = 15;
+            controls.maxPolarAngle = Math.PI * 0.85;
+            controls.target.set(0, 1.5, 0);
+
+            // 初始化射线检测
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+            clock = new THREE.Clock();
+
+            // 添加场景内容
+            addLighting();
+            createRoom();
+            createFurniture();
+            addInteractiveObjects();
+
+            // 更新物体数量
+            document.getElementById('objectsCount').textContent = interactiveObjects.length;
+
+            // 事件监听
+            window.addEventListener('resize', onWindowResize);
+            renderer.domElement.addEventListener('click', onMouseClick);
+            renderer.domElement.addEventListener('mousemove', onMouseMove);
+
+            // UI事件
+            document.getElementById('closeModal').addEventListener('click', closeModal);
+            document.getElementById('closeInventory').addEventListener('click', toggleInventory);
+            document.getElementById('closePassword').addEventListener('click', closePasswordModal);
+            document.getElementById('inventoryBtn').addEventListener('click', toggleInventory);
+            document.getElementById('resetViewBtn').addEventListener('click', resetView);
+            document.getElementById('restartBtn').addEventListener('click', restartGame);
+
+            // 密码键盘事件
+            document.querySelectorAll('.key-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    handlePasswordDigit(btn.dataset.digit);
+                });
+            });
+
+            // 模拟加载进度
+            simulateLoading();
+
+            // 开始动画循环
+            animate();
+        }
+
+        // ==================== 加载进度模拟 ====================
+        function simulateLoading() {
+            const loadingBar = document.getElementById('loadingBar');
+            const loadingText = document.getElementById('loadingText');
+            const loadingScreen = document.getElementById('loadingScreen');
+            const stages = [
+                { progress: 20, text: '构建密室结构...' },
+                { progress: 40, text: '添加家具模型...' },
+                { progress: 60, text: '设置光照效果...' },
+                { progress: 80, text: '配置交互系统...' },
+                { progress: 100, text: '准备完成！' }
+            ];
+
+            let currentStage = 0;
+            const interval = setInterval(() => {
+                if (currentStage < stages.length) {
+                    loadingBar.style.width = stages[currentStage].progress + '%';
+                    loadingText.textContent = stages[currentStage].text;
+                    currentStage++;
+                } else {
+                    clearInterval(interval);
+                    setTimeout(() => {
+                        loadingScreen.classList.add('hidden');
+                    }, 500);
+                }
+            }, 400);
+        }
+
+        // ==================== 光照系统 ====================
+        function addLighting() {
+            // 环境光
+            const ambientLight = new THREE.AmbientLight(0x404050, 0.4);
+            scene.add(ambientLight);
+
+            // 主光源（模拟吊灯）
+            const mainLight = new THREE.PointLight(0xffeedd, 1.5, 20);
+            mainLight.position.set(0, 3.5, 0);
+            mainLight.castShadow = true;
+            mainLight.shadow.mapSize.width = 2048;
+            mainLight.shadow.mapSize.height = 2048;
+            mainLight.shadow.camera.near = 0.5;
+            mainLight.shadow.camera.far = 15;
+            scene.add(mainLight);
+
+            // 辅助光源（台灯）
+            const deskLight = new THREE.PointLight(0xffaa66, 0.8, 8);
+            deskLight.position.set(-2, 1.8, -1.5);
+            scene.add(deskLight);
+
+            // 窗户月光效果
+            const moonLight = new THREE.DirectionalLight(0x6688ff, 0.3);
+            moonLight.position.set(5, 3, 0);
+            scene.add(moonLight);
+
+            // 门缝透光
+            const doorLight = new THREE.PointLight(0xffeedd, 0.5, 3);
+            doorLight.position.set(2.55, 1.5, 0);
+            scene.add(doorLight);
+        }
+
+        // ==================== 创建房间 ====================
+        function createRoom() {
+            // 地板
+            const floorGeometry = new THREE.PlaneGeometry(6, 6);
+            const floorMaterial = new THREE.MeshStandardMaterial({
+                color: 0x3a3a3a,
+                roughness: 0.8,
+                metalness: 0.2
+            });
+            const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+            floor.rotation.x = -Math.PI / 2;
+            floor.receiveShadow = true;
+            scene.add(floor);
+
+            // 添加地板纹理线条
+            const lineGeometry = new THREE.EdgesGeometry(new THREE.PlaneGeometry(6, 6));
+            const lineMaterial = new THREE.LineBasicMaterial({ color: 0x555555 });
+            const floorLines = new THREE.LineSegments(lineGeometry, lineMaterial);
+            floorLines.rotation.x = -Math.PI / 2;
+            floorLines.position.y = 0.001;
+            scene.add(floorLines);
+
+            // 天花板
+            const ceilingGeometry = new THREE.PlaneGeometry(6, 6);
+            const ceilingMaterial = new THREE.MeshStandardMaterial({
+                color: 0x2a2a2a,
+                roughness: 0.9,
+                metalness: 0.1
+            });
+            const ceiling = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
+            ceiling.rotation.x = Math.PI / 2;
+            ceiling.position.y = 4;
+            scene.add(ceiling);
+
+            // 墙壁材质
+            const wallMaterial = new THREE.MeshStandardMaterial({
+                color: 0xd4c4b0,
+                roughness: 0.85,
+                metalness: 0.1
+            });
+
+            // 后墙
+            const backWall = new THREE.Mesh(new THREE.PlaneGeometry(6, 4), wallMaterial);
+            backWall.position.set(0, 2, -3);
+            backWall.receiveShadow = true;
+            scene.add(backWall);
+
+            // 门洞（后墙中央）
+            const doorFrameMaterial = new THREE.MeshStandardMaterial({
+                color: 0x4a3728,
+                roughness: 0.7,
+                metalness: 0.2
+            });
+
+            const doorFrame = new THREE.Mesh(
+                new THREE.BoxGeometry(1.3, 2.5, 0.15),
+                doorFrameMaterial
+            );
+            doorFrame.position.set(0, 1.25, -2.95);
+            doorFrame.castShadow = true;
+            scene.add(doorFrame);
+
+            // 门板
+            const door = new THREE.Mesh(
+                new THREE.BoxGeometry(1.1, 2.4, 0.08),
+                new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 0.6 })
+            );
+            door.position.set(0, 1.2, -2.9);
+            door.castShadow = true;
+            door.name = 'door';
+            scene.add(door);
+            interactiveObjects.push(door);
+
+            // 门把手
+            const doorHandle = new THREE.Mesh(
+                new THREE.SphereGeometry(0.05),
+                new THREE.MeshStandardMaterial({ color: 0xc4a747, metalness: 0.8, roughness: 0.3 })
+            );
+            doorHandle.position.set(0.45, 1.2, -2.85);
+            scene.add(doorHandle);
+
+            // 门锁提示
+            const doorLock = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.03, 0.03, 0.02),
+                new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.8 })
+            );
+            doorLock.rotation.x = Math.PI / 2;
+            doorLock.position.set(0, 1.5, -2.86);
+            scene.add(doorLock);
+
+            // 前墙
+            const frontWall = new THREE.Mesh(new THREE.PlaneGeometry(6, 4), wallMaterial);
+            frontWall.position.set(0, 2, 3);
+            frontWall.rotation.y = Math.PI;
+            scene.add(frontWall);
+
+            // 左墙
+            const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(6, 4), wallMaterial);
+            leftWall.position.set(-3, 2, 0);
+            leftWall.rotation.y = Math.PI / 2;
+            leftWall.receiveShadow = true;
+            scene.add(leftWall);
+
+            // 右墙
+            const rightWall = new THREE.Mesh(new THREE.PlaneGeometry(6, 4), wallMaterial);
+            rightWall.position.set(3, 2, 0);
+            rightWall.rotation.y = -Math.PI / 2;
+            scene.add(rightWall);
+        }
+
+        // ==================== 创建家具 ====================
+        function createFurniture() {
+            // 床
+            createBed();
+
+            // 书桌
+            createDesk();
+
+            // 保险箱
+            createSafe();
+
+            // 衣柜
+            createWardrobe();
+
+            // 盆栽
+            createPlant();
+
+            // 挂钟
+            createClock();
+
+            // 垃圾桶
+            createTrash();
+
+            // 油画
+            createPainting();
+        }
+
+        function createBed() {
+            const bedGroup = new THREE.Group();
+
+            // 床架
+            const bedFrame = new THREE.Mesh(
+                new THREE.BoxGeometry(2, 0.5, 2.5),
+                new THREE.MeshStandardMaterial({ color: 0x4a3728, roughness: 0.7 })
+            );
+            bedFrame.position.y = 0.25;
+            bedFrame.castShadow = true;
+            bedGroup.add(bedFrame);
+
+            // 床垫
+            const mattress = new THREE.Mesh(
+                new THREE.BoxGeometry(1.9, 0.3, 2.4),
+                new THREE.MeshStandardMaterial({ color: 0xf5f5dc, roughness: 0.9 })
+            );
+            mattress.position.y = 0.65;
+            mattress.castShadow = true;
+            bedGroup.add(mattress);
+
+            // 枕头
+            const pillow = new THREE.Mesh(
+                new THREE.BoxGeometry(0.5, 0.15, 0.35),
+                new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8 })
+            );
+            pillow.position.set(0.5, 0.95, 1);
+            pillow.name = 'bed';
+            bedGroup.add(pillow);
+            interactiveObjects.push(pillow);
+
+            // 被子
+            const blanket = new THREE.Mesh(
+                new THREE.BoxGeometry(1.8, 0.2, 1.5),
+                new THREE.MeshStandardMaterial({ color: 0x8b4513, roughness: 0.8 })
+            );
+            blanket.position.set(-0.1, 0.9, 0);
+            blanket.castShadow = true;
+            bedGroup.add(blanket);
+
+            bedGroup.position.set(2, 0, -2);
+            scene.add(bedGroup);
+        }
+
+        function createDesk() {
+            const deskGroup = new THREE.Group();
+
+            // 桌面
+            const desktop = new THREE.Mesh(
+                new THREE.BoxGeometry(1.5, 0.08, 0.8),
+                new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 0.6 })
+            );
+            desktop.position.y = 0.8;
+            desktop.castShadow = true;
+            deskGroup.add(desktop);
+
+            // 桌腿
+            const legMaterial = new THREE.MeshStandardMaterial({ color: 0x4a3728 });
+            const legGeometry = new THREE.BoxGeometry(0.08, 0.8, 0.08);
+            
+            const leg1 = new THREE.Mesh(legGeometry, legMaterial);
+            leg1.position.set(-0.65, 0.4, 0.3);
+            deskGroup.add(leg1);
+
+            const leg2 = new THREE.Mesh(legGeometry, legMaterial);
+            leg2.position.set(0.65, 0.4, 0.3);
+            deskGroup.add(leg2);
+
+            const leg3 = new THREE.Mesh(legGeometry, legMaterial);
+            leg3.position.set(-0.65, 0.4, -0.3);
+            deskGroup.add(leg3);
+
+            const leg4 = new THREE.Mesh(legGeometry, legMaterial);
+            leg4.position.set(0.65, 0.4, -0.3);
+            deskGroup.add(leg4);
+
+            // 抽屉
+            const drawer = new THREE.Mesh(
+                new THREE.BoxGeometry(0.5, 0.4, 0.5),
+                new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 0.6 })
+            );
+            drawer.position.set(-0.4, 0.38, 0);
+            drawer.name = 'drawer';
+            deskGroup.add(drawer);
+            interactiveObjects.push(drawer);
+
+            // 抽屉把手
+            const drawerHandle = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.03, 0.03, 0.1),
+                new THREE.MeshStandardMaterial({ color: 0xc4a747, metalness: 0.8 })
+            );
+            drawerHandle.rotation.z = Math.PI / 2;
+            drawerHandle.position.set(-0.4, 0.38, 0.28);
+            deskGroup.add(drawerHandle);
+
+            // 台灯
+            const lampGroup = new THREE.Group();
+            const lampBase = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.1, 0.12, 0.05),
+                new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.8 })
+            );
+            lampBase.position.y = 0.85;
+            lampGroup.add(lampBase);
+
+            const lampPole = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.02, 0.02, 0.4),
+                new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.6 })
+            );
+            lampPole.position.y = 1.1;
+            lampGroup.add(lampPole);
+
+            const lampShade = new THREE.Mesh(
+                new THREE.ConeGeometry(0.15, 0.2, 8, 1, true),
+                new THREE.MeshStandardMaterial({ 
+                    color: 0xf5deb3, 
+                    roughness: 0.8,
+                    side: THREE.DoubleSide
+                })
+            );
+            lampShade.position.y = 1.35;
+            lampGroup.add(lampShade);
+            lampShade.name = 'lamp';
+            interactiveObjects.push(lampShade);
+
+            // 灯泡光晕
+            const bulbGlow = new THREE.PointLight(0xffaa66, 0.5, 2);
+            bulbGlow.position.y = 1.3;
+            lampGroup.add(bulbGlow);
+
+            lampGroup.position.set(0.4, 0, 0);
+            deskGroup.add(lampGroup);
+
+            // 日记本
+            const diary = new THREE.Mesh(
+                new THREE.BoxGeometry(0.2, 0.03, 0.25),
+                new THREE.MeshStandardMaterial({ color: 0x8b0000, roughness: 0.7 })
+            );
+            diary.position.set(-0.3, 0.86, -0.2);
+            diary.rotation.y = 0.2;
+            diary.name = 'diary';
+            deskGroup.add(diary);
+            interactiveObjects.push(diary);
+
+            deskGroup.position.set(-2, 0, 2);
+            scene.add(deskGroup);
+        }
+
+        function createSafe() {
+            const safeGroup = new THREE.Group();
+
+            // 保险箱主体
+            const safeBody = new THREE.Mesh(
+                new THREE.BoxGeometry(0.5, 0.5, 0.3),
+                new THREE.MeshStandardMaterial({ 
+                    color: 0x2a2a2a, 
+                    metalness: 0.9, 
+                    roughness: 0.3 
+                })
+            );
+            safeBody.castShadow = true;
+            safeGroup.add(safeBody);
+
+            // 密码面板
+            const keypad = new THREE.Mesh(
+                new THREE.PlaneGeometry(0.3, 0.25),
+                new THREE.MeshStandardMaterial({ color: 0x1a1a1a })
+            );
+            keypad.position.z = 0.16;
+            keypad.name = 'safe';
+            safeGroup.add(keypad);
+            interactiveObjects.push(keypad);
+
+            // 密码数字
+            for (let i = 0; i < 4; i++) {
+                const digit = new THREE.Mesh(
+                    new THREE.PlaneGeometry(0.05, 0.08),
+                    new THREE.MeshBasicMaterial({ color: 0x00ff00 })
+                );
+                digit.position.set(-0.1 + i * 0.07, 0.05, 0.17);
+                safeGroup.add(digit);
+            }
+
+            // 旋转把手
+            const handle = new THREE.Mesh(
+                new THREE.TorusGeometry(0.08, 0.02, 8, 16),
+                new THREE.MeshStandardMaterial({ color: 0xc4a747, metalness: 0.8 })
+            );
+            handle.position.set(0.15, 0, 0.15);
+            handle.rotation.y = Math.PI / 2;
+            safeGroup.add(handle);
+
+            safeGroup.position.set(2.8, 1.5, 1.5);
+            safeGroup.rotation.y = -Math.PI / 2;
+            scene.add(safeGroup);
+        }
+
+        function createWardrobe() {
+            const wardrobeGroup = new THREE.Group();
+
+            // 衣柜主体
+            const wardrobe = new THREE.Mesh(
+                new THREE.BoxGeometry(1.5, 2.5, 0.6),
+                new THREE.MeshStandardMaterial({ color: 0x5c4033, roughness: 0.7 })
+            );
+            wardrobe.position.y = 1.25;
+            wardrobe.castShadow = true;
+            wardrobeGroup.add(wardrobe);
+
+            // 门缝线条
+            const lineMaterial = new THREE.LineBasicMaterial({ color: 0x3a2819 });
+            const edges = new THREE.EdgesGeometry(new THREE.BoxGeometry(1.5, 2.5, 0.6));
+            const lines = new THREE.LineSegments(edges, lineMaterial);
+            lines.position.y = 1.25;
+            wardrobeGroup.add(lines);
+
+            // 门把手
+            const handle = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.03, 0.03, 0.15),
+                new THREE.MeshStandardMaterial({ color: 0xc4a747, metalness: 0.8 })
+            );
+            handle.rotation.z = Math.PI / 2;
+            handle.position.set(0.6, 1.25, 0.35);
+            wardrobeGroup.add(handle);
+
+            wardrobeGroup.position.set(-2.7, 0, -2.7);
+            scene.add(wardrobeGroup);
+        }
+
+        function createPlant() {
+            const plantGroup = new THREE.Group();
+
+            // 花盆
+            const pot = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.2, 0.15, 0.3, 16),
+                new THREE.MeshStandardMaterial({ color: 0x8b4513, roughness: 0.8 })
+            );
+            pot.position.y = 0.15;
+            pot.castShadow = true;
+            pot.name = 'plant';
+            plantGroup.add(pot);
+            interactiveObjects.push(pot);
+
+            // 土壤
+            const soil = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.18, 0.18, 0.02, 16),
+                new THREE.MeshStandardMaterial({ color: 0x3d2914, roughness: 1 })
+            );
+            soil.position.y = 0.29;
+            soil.name = 'plant';
+            plantGroup.add(soil);
+            interactiveObjects.push(soil);
+
+            // 茎
+            const stemMaterial = new THREE.MeshStandardMaterial({ color: 0x228b22 });
+            for (let i = 0; i < 5; i++) {
+                const stem = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.01, 0.01, 0.3, 8),
+                    stemMaterial
+                );
+                const angle = (i / 5) * Math.PI * 2;
+                stem.position.set(
+                    Math.cos(angle) * 0.08,
+                    0.5,
+                    Math.sin(angle) * 0.08
+                );
+                stem.rotation.x = Math.random() * 0.3 - 0.15;
+                stem.rotation.z = Math.random() * 0.3 - 0.15;
+                stem.name = 'plant';
+                plantGroup.add(stem);
+                interactiveObjects.push(stem);
+
+                // 叶子
+                const leaf = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.08, 8, 8),
+                    new THREE.MeshStandardMaterial({ color: 0x32cd32, roughness: 0.8 })
+                );
+                leaf.position.set(
+                    Math.cos(angle) * 0.08 + Math.cos(angle) * 0.2,
+                    0.7,
+                    Math.sin(angle) * 0.08 + Math.sin(angle) * 0.2
+                );
+                leaf.scale.y = 0.5;
+                leaf.name = 'plant';
+                plantGroup.add(leaf);
+                interactiveObjects.push(leaf);
+            }
+
+            // 钥匙（在土壤里）
+            const key = new THREE.Mesh(
+                new THREE.BoxGeometry(0.05, 0.02, 0.08),
+                new THREE.MeshStandardMaterial({ color: 0xc4a747, metalness: 0.9 })
+            );
+            key.position.set(0.05, 0.31, 0);
+            key.rotation.y = Math.PI / 4;
+            key.name = 'key';
+            key.visible = false;
+            plantGroup.add(key);
+            interactiveObjects.push(key);
+
+            plantGroup.position.set(2.3, 0, 2.3);
+            scene.add(plantGroup);
+        }
+
+        function createClock() {
+            const clockGroup = new THREE.Group();
+
+            // 时钟外壳
+            const clockCase = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.25, 0.25, 0.05, 32),
+                new THREE.MeshStandardMaterial({ color: 0x4a3728, roughness: 0.6 })
+            );
+            clockCase.rotation.x = Math.PI / 2;
+            clockGroup.add(clockCase);
+
+            // 时钟表面
+            const clockFace = new THREE.Mesh(
+                new THREE.CircleGeometry(0.22, 32),
+                new THREE.MeshStandardMaterial({ color: 0xfffff0 })
+            );
+            clockFace.position.z = 0.03;
+            clockGroup.add(clockFace);
+
+            // 时针
+            const hourHand = new THREE.Mesh(
+                new THREE.BoxGeometry(0.02, 0.12, 0.01),
+                new THREE.MeshStandardMaterial({ color: 0x000000 })
+            );
+            hourHand.position.z = 0.04;
+            hourHand.position.y = 0.05;
+            hourHand.name = 'clock';
+            clockGroup.add(hourHand);
+            interactiveObjects.push(hourHand);
+
+            // 分针
+            const minuteHand = new THREE.Mesh(
+                new THREE.BoxGeometry(0.015, 0.16, 0.01),
+                new THREE.MeshStandardMaterial({ color: 0x000000 })
+            );
+            minuteHand.position.z = 0.04;
+            minuteHand.position.y = 0.06;
+            minuteHand.rotation.z = -Math.PI / 3;
+            clockGroup.add(minuteHand);
+
+            // 中心点
+            const centerPin = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.02, 0.02, 0.02, 16),
+                new THREE.MeshStandardMaterial({ color: 0xc4a747, metalness: 0.8 })
+            );
+            centerPin.rotation.x = Math.PI / 2;
+            centerPin.position.z = 0.04;
+            clockGroup.add(centerPin);
+
+            clockGroup.position.set(-1.2, 2.8, -2.95);
+            clockGroup.rotation.y = 0;
+            scene.add(clockGroup);
+        }
+
+        function createTrash() {
+            const trashGroup = new THREE.Group();
+
+            // 桶身
+            const trashBody = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.15, 0.12, 0.35, 16),
+                new THREE.MeshStandardMaterial({ color: 0x666666, roughness: 0.5, metalness: 0.3 })
+            );
+            trashBody.position.y = 0.175;
+            trashBody.castShadow = true;
+            trashBody.name = 'trash';
+            trashGroup.add(trashBody);
+            interactiveObjects.push(trashBody);
+
+            // 纸团
+            const paper = new THREE.Mesh(
+                new THREE.SphereGeometry(0.06, 8, 8),
+                new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 })
+            );
+            paper.position.set(0.05, 0.35, 0.03);
+            paper.scale.set(1, 0.8, 0.7);
+            paper.name = 'paper';
+            trashGroup.add(paper);
+            interactiveObjects.push(paper);
+
+            trashGroup.position.set(1.5, 0, -1.5);
+            scene.add(trashGroup);
+        }
+
+        function createPainting() {
+            const paintingGroup = new THREE.Group();
+
+            // 画框
+            const frame = new THREE.Mesh(
+                new THREE.BoxGeometry(0.8, 0.6, 0.05),
+                new THREE.MeshStandardMaterial({ color: 0x8b7355, roughness: 0.6 })
+            );
+            frame.castShadow = true;
+            paintingGroup.add(frame);
+
+            // 画布
+            const canvas = new THREE.Mesh(
+                new THREE.PlaneGeometry(0.7, 0.5),
+                new THREE.MeshStandardMaterial({ color: 0xffa07a })
+            );
+            canvas.position.z = 0.03;
+            paintingGroup.add(canvas);
+
+            // 风景画（简化）
+            const sky = new THREE.Mesh(
+                new THREE.PlaneGeometry(0.65, 0.3),
+                new THREE.MeshBasicMaterial({ color: 0xffcc99 })
+            );
+            sky.position.set(0, 0.1, 0.04);
+            paintingGroup.add(sky);
+
+            const mountain = new THREE.Mesh(
+                new THREE.PlaneGeometry(0.6, 0.2),
+                new THREE.MeshBasicMaterial({ color: 0x8b4513 })
+            );
+            mountain.position.set(0, -0.05, 0.041);
+            paintingGroup.add(mountain);
+
+            const sun = new THREE.Mesh(
+                new THREE.CircleGeometry(0.08, 16),
+                new THREE.MeshBasicMaterial({ color: 0xffff00 })
+            );
+            sun.position.set(0.2, 0.15, 0.041);
+            paintingGroup.add(sun);
+
+            paintingGroup.position.set(-2.9, 2.2, 1);
+            paintingGroup.rotation.y = Math.PI / 2;
+            paintingGroup.name = 'painting';
+            scene.add(paintingGroup);
+            interactiveObjects.push(paintingGroup);
+        }
+
+        // ==================== 添加交互对象 ====================
+        function addInteractiveObjects() {
+            // 所有可交互对象已添加到interactiveObjects数组
+        }
+
+        // ==================== 事件处理 ====================
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function onMouseMove(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            // 射线检测悬停效果
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(interactiveObjects);
+
+            if (intersects.length > 0) {
+                document.body.style.cursor = 'pointer';
+                const hint = document.getElementById('actionHint');
+                const objectName = intersects[0].object.name;
+                if (objectName && itemData[objectName]) {
+                    hint.textContent = `点击查看: ${itemData[objectName].name}`;
+                    hint.classList.add('visible');
+                }
+            } else {
+                document.body.style.cursor = 'default';
+                document.getElementById('actionHint').classList.remove('visible');
+            }
+        }
+
+        function onMouseClick(event) {
+            if (isGameComplete) return;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(interactiveObjects);
+
+            if (intersects.length > 0) {
+                const object = intersects[0].object;
+                const objectName = object.name;
+
+                // 处理特殊物品的交互逻辑
+                if (objectName === 'plant') {
+                    // 点击盆栽，获得小钥匙
+                    const plantData = itemData['plant'];
+                    if (!plantData.collected) {
+                        plantData.collected = true;
+                        // 添加钥匙到背包
+                        const keyItem = itemData['key'];
+                        if (keyItem) {
+                            keyItem.collected = true;
+                            collectedItems.push('key');
+                            showModal('🔑 发现钥匙！', 
+                                '你在花盆的土壤里发现了一把银色的小钥匙！这把钥匙看起来可以打开什么东西...', 
+                                '去书桌抽屉试试看？');
+                            updateInventory();
+                        }
+                    } else {
+                        showModal(plantData.name, plantData.description, '盆栽里已经没有什么东西了。');
+                    }
+                    return;
+                }
+
+                // 处理抽屉的交互逻辑
+                if (objectName === 'drawer') {
+                    const drawerData = itemData['drawer'];
+                    if (drawerData.opened) {
+                        showModal(drawerData.name, '抽屉已经打开了，里面空空如也。', '');
+                    } else if (collectedItems.includes('key')) {
+                        drawerData.opened = true;
+                        showModal('🔓 抽屉已打开！', 
+                            `你用小钥匙打开了抽屉！在抽屉里发现了一张纸条，上面写着一串数字：<strong>${safePassword.slice(0,1)}-${safePassword.slice(1,2)}-${safePassword.slice(2,3)}-${safePassword.slice(3,4)}</strong>`,
+                            '这看起来像是保险箱的密码！');
+                    } else {
+                        showModal(drawerData.name, drawerData.description, '你需要找到钥匙才能打开它。');
+                    }
+                    return;
+                }
+
+                // 处理保险箱的交互逻辑
+                if (objectName === 'safe') {
+                    showPasswordModal('safe', safePassword, '🔒 保险箱密码');
+                    return;
+                }
+
+                // 处理门的交互逻辑
+                if (objectName === 'door') {
+                    if (collectedItems.includes('safe_content')) {
+                        showPasswordModal('door', doorPassword, '🚪 门锁密码');
+                    } else {
+                        showModal(itemData['door'].name, itemData['door'].description, '你需要找到打开这扇门的方法...');
+                    }
+                    return;
+                }
+
+                if (objectName && itemData[objectName]) {
+                    const item = itemData[objectName];
+
+                    // 对于普通物品（非盆栽等特殊物品）
+                    if (objectName !== 'plant') {
+                        showModal(item.name, item.description, item.hint);
+
+                        // 检查是否可以收集
+                        if (item.canCollect && !item.collected) {
+                            collectItem(objectName);
+                        }
+                    }
+                }
+            }
+        }
+
+        // ==================== 物品收集 ====================
+        function collectItem(itemName) {
+            const item = itemData[itemName];
+            if (!item || item.collected) return;
+
+            item.collected = true;
+            collectedItems.push(itemName);
+
+            // 隐藏物品
+            const obj = interactiveObjects.find(obj => obj.name === itemName);
+            if (obj) {
+                obj.visible = false;
+            }
+
+            // 更新物品栏
+            updateInventory();
+
+            // 显示收集提示
+            showHint(`获得物品: ${item.name}`);
+        }
+
+        function updateInventory() {
+            const content = document.getElementById('inventoryContent');
+            
+            if (collectedItems.length === 0) {
+                content.innerHTML = `
+                    <div class="inventory-empty">
+                        还没有收集任何物品<br>
+                        探索房间来发现线索吧！
+                    </div>
+                `;
+                return;
+            }
+
+            content.innerHTML = collectedItems.map(itemName => {
+                const item = itemData[itemName];
+                return `
+                    <div class="inventory-item" onclick="showItemDetail('${itemName}')">
+                        <div class="inventory-item-icon">${getItemIcon(itemName)}</div>
+                        <div class="inventory-item-name">${item.name}</div>
+                        <div class="inventory-item-desc">${item.description.substring(0, 50)}...</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function getItemIcon(itemName) {
+            const icons = {
+                'paper': '📄',
+                'diary': '📔',
+                'key': '🔑',
+                'safe_content': '🔑'
+            };
+            return icons[itemName] || '📦';
+        }
+
+        // 显示物品详情
+        window.showItemDetail = function(itemName) {
+            const item = itemData[itemName];
+            if (item) {
+                showModal(item.name, item.description, item.hint);
+            }
+        };
+
+        // ==================== UI功能 ====================
+        function showModal(title, description, hint) {
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalContent').innerHTML = `
+                <p>${description}</p>
+                <div class="modal-hint">💡 ${hint}</div>
+            `;
+            document.getElementById('itemModal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('itemModal').classList.remove('active');
+        }
+
+        let currentPassword = '';
+        let currentSafeType = '';
+
+        function showPasswordModal(safeType, correctPassword, title) {
+            currentPassword = '';
+            currentSafeType = safeType;
+            updatePasswordDisplay();
+            document.getElementById('passwordTitle').textContent = title;
+            document.getElementById('passwordHint').textContent = `请输入${correctPassword.length}位密码`;
+            document.getElementById('passwordModal').classList.add('active');
+        }
+
+        function closePasswordModal() {
+            document.getElementById('passwordModal').classList.remove('active');
+            currentPassword = '';
+            currentSafeType = '';
+        }
+
+        function updatePasswordDisplay() {
+            const display = document.getElementById('passwordDisplay');
+            const dots = currentPassword.padEnd(4, '-');
+            display.textContent = dots.split('').join(' ');
+        }
+
+        function handlePasswordDigit(digit) {
+            if (digit === 'clear') {
+                currentPassword = '';
+            } else if (digit === 'enter') {
+                checkPassword();
+                return;
+            } else {
+                if (currentPassword.length < 4) {
+                    currentPassword += digit;
+                }
+            }
+            updatePasswordDisplay();
+        }
+
+        function checkPassword() {
+            const safeData = itemData[currentSafeType];
+            
+            if (currentSafeType === 'safe' && currentPassword === safePassword) {
+                if (safeData.opened) {
+                    closePasswordModal();
+                    showModal(safeData.name, '保险箱已经打开了，里面空空如也。', '');
+                } else {
+                    safeData.opened = true;
+                    closePasswordModal();
+                    collectItem('safe_content');
+                    showModal('🔓 保险箱已打开！', 
+                        `你成功打开了保险箱！在里面的纸条上写着一串数字：<strong>${doorPassword.slice(0,1)}-${doorPassword.slice(1,2)}-${doorPassword.slice(2,3)}-${doorPassword.slice(3,4)}</strong>，还有一把金色的钥匙！`,
+                        '这一定是开门用的密码和钥匙！');
+                }
+            } else if (currentSafeType === 'door' && currentPassword === doorPassword) {
+                if (collectedItems.includes('safe_content')) {
+                    closePasswordModal();
+                    gameComplete();
+                } else {
+                    closePasswordModal();
+                    showModal(itemData['door'].name, '密码正确，但你没有钥匙...', '你需要找到钥匙才能打开这扇门。');
+                }
+            } else {
+                document.getElementById('passwordDisplay').textContent = 'ERR';
+                document.getElementById('passwordDisplay').style.color = '#ff6464';
+                document.getElementById('passwordDisplay').style.borderColor = '#ff6464';
+                setTimeout(() => {
+                    currentPassword = '';
+                    document.getElementById('passwordDisplay').style.color = '#00ff88';
+                    document.getElementById('passwordDisplay').style.borderColor = '#00ff88';
+                    updatePasswordDisplay();
+                }, 800);
+            }
+        }
+
+        function gameComplete() {
+            isGameComplete = true;
+            document.getElementById('successOverlay').classList.add('active');
+            showHint('🎉 恭喜你成功逃脱！');
+        }
+
+        function toggleInventory() {
+            document.getElementById('inventoryPanel').classList.toggle('active');
+        }
+
+        function resetView() {
+            camera.position.set(4, 3, 5);
+            controls.target.set(0, 1.5, 0);
+            controls.update();
+        }
+
+        function showHint(text) {
+            const hint = document.getElementById('actionHint');
+            hint.textContent = text;
+            hint.classList.add('visible');
+            setTimeout(() => {
+                hint.classList.remove('visible');
+            }, 2000);
+        }
+
+        function restartGame() {
+            // 重新生成随机密码
+            initRandomPasswords();
+            itemData['safe'].hint = `输入密码 ${safePassword.slice(0,1)}-${safePassword.slice(1,2)}-${safePassword.slice(2,3)}-${safePassword.slice(3,4)} 试试看！`;
+
+            // 重置所有收集状态
+            Object.keys(itemData).forEach(key => {
+                if (itemData[key].collected) {
+                    itemData[key].collected = false;
+                }
+                if (itemData[key].opened) {
+                    itemData[key].opened = false;
+                }
+            });
+            collectedItems = [];
+            isGameComplete = false;
+
+            // 重新显示所有物品
+            interactiveObjects.forEach(obj => {
+                if (obj.name && itemData[obj.name] && itemData[obj.name].canCollect) {
+                    obj.visible = true;
+                }
+            });
+
+            // 更新UI
+            updateInventory();
+            document.getElementById('successOverlay').classList.remove('active');
+
+            showHint('游戏重新开始！探索房间寻找线索吧。');
+        }
+
+        // ==================== 动画循环 ====================
+        let frameCount = 0;
+        let lastTime = performance.now();
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // FPS计算
+            frameCount++;
+            const currentTime = performance.now();
+            if (currentTime - lastTime >= 1000) {
+                document.getElementById('fpsValue').textContent = frameCount;
+                frameCount = 0;
+                lastTime = currentTime;
+            }
+
+            // 更新控制器
+            controls.update();
+
+            // 渲染场景
+            renderer.render(scene, camera);
+        }
+
+        // ==================== 启动 ====================
+        init();
+    </script>
+</body>
+</html>
