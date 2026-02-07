@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>颜色判定单元测试</title>
+    <style>
+        body {
+            font-family: 'Consolas', 'Monaco', monospace;
+            background: #1a1a2e;
+            color: #eee;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #00ff88;
+            border-bottom: 2px solid #00ff88;
+            padding-bottom: 10px;
+        }
+        .test-section {
+            background: #16213e;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid #00ff88;
+        }
+        .test-section h2 {
+            color: #ff6b6b;
+            margin-top: 0;
+        }
+        .test-result {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .pass {
+            background: rgba(0, 255, 136, 0.2);
+            border: 1px solid #00ff88;
+        }
+        .fail {
+            background: rgba(255, 107, 107, 0.2);
+            border: 1px solid #ff6b6b;
+        }
+        .summary {
+            font-size: 1.2em;
+            padding: 20px;
+            text-align: center;
+            border-radius: 8px;
+            margin-top: 30px;
+        }
+        .summary.all-pass {
+            background: rgba(0, 255, 136, 0.3);
+            border: 2px solid #00ff88;
+        }
+        .summary.has-fail {
+            background: rgba(255, 107, 107, 0.3);
+            border: 2px solid #ff6b6b;
+        }
+        pre {
+            background: #0f0f23;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        button {
+            background: #00ff88;
+            color: #1a1a2e;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 4px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #00cc6a;
+        }
+        .color-sample {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 1px solid #fff;
+            vertical-align: middle;
+            margin: 0 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎨 动态颜色判定系统 - 单元测试</h1>
+    
+    <button onclick="runAllTests()">▶ 运行所有测试</button>
+    <button onclick="runThresholdTest()">▶ 阈值区间测试</button>
+    <button onclick="runBoundaryTest()">▶ 边界值测试</button>
+    <button onclick="runVarianceTest()">▶ 随机差异测试</button>
+    
+    <div id="testResults"></div>
+
+    <script>
+        /**
+         * 动态颜色阈值系统测试
+         * 测试规则：
+         * - R分量：随机生成[240, 255]区间的整数作为最小值
+         * - G分量：随机生成[0, 15]区间的整数作为最大值
+         * - B分量：随机生成[0, 15]区间的整数作为最大值
+         * 真红判定：R >= redMin 且 G <= greenMax 且 B <= blueMax
+         */
+        
+        let testPassCount = 0;
+        let testFailCount = 0;
+        
+        function resetCounts() {
+            testPassCount = 0;
+            testFailCount = 0;
+        }
+        
+        function assert(condition, message, details = '') {
+            if (condition) {
+                testPassCount++;
+                return `<div class="test-result pass">✅ ${message}</div>`;
+            } else {
+                testFailCount++;
+                return `<div class="test-result fail">❌ ${message}<br><pre>${details}</pre></div>`;
+            }
+        }
+        
+        function generateThresholds() {
+            return {
+                redMin: Math.floor(Math.random() * 16) + 240,  // [240, 255]
+                greenMax: Math.floor(Math.random() * 16),       // [0, 15]
+                blueMax: Math.floor(Math.random() * 16)         // [0, 15]
+            };
+        }
+        
+        function isTrueRed(r, g, b, thresholds) {
+            return r >= thresholds.redMin && g <= thresholds.greenMax && b <= thresholds.blueMax;
+        }
+        
+        function runThresholdTest() {
+            resetCounts();
+            const results = document.getElementById('testResults');
+            let html = '<div class="test-section"><h2>1. 阈值区间测试（连续100局）</h2>';
+            
+            const thresholdsSet = new Set();
+            let allInRange = true;
+            
+            for (let i = 0; i < 100; i++) {
+                const t = generateThresholds();
+                const tKey = `${t.redMin}-${t.greenMax}-${t.blueMax}`;
+                thresholdsSet.add(tKey);
+                
+                if (t.redMin < 240 || t.redMin > 255) {
+                    allInRange = false;
+                    html += assert(false, `第${i+1}局: redMin=${t.redMin} 超出区间[240,255]`);
+                }
+                if (t.greenMax < 0 || t.greenMax > 15) {
+                    allInRange = false;
+                    html += assert(false, `第${i+1}局: greenMax=${t.greenMax} 超出区间[0,15]`);
+                }
+                if (t.blueMax < 0 || t.blueMax > 15) {
+                    allInRange = false;
+                    html += assert(false, `第${i+1}局: blueMax=${t.blueMax} 超出区间[0,15]`);
+                }
+            }
+            
+            html += assert(allInRange, '所有阈值均在指定区间内');
+            html += assert(thresholdsSet.size >= 50, `100局中生成了 ${thresholdsSet.size} 种不同的阈值组合（应≥50）`);
+            
+            html += '</div>';
+            results.innerHTML += html;
+            return allInRange;
+        }
+        
+        function runBoundaryTest() {
+            resetCounts();
+            const results = document.getElementById('testResults');
+            let html = '<div class="test-section"><h2>2. 边界值测试</h2>';
+            
+            for (let i = 0; i < 100; i++) {
+                const thresholds = generateThresholds();
+                const { redMin, greenMax, blueMax } = thresholds;
+                
+                // 边界值测试：RGB(255,0,0) 应该是真红
+                const test1 = isTrueRed(255, 0, 0, thresholds);
+                html += assert(test1, `第${i+1}局: RGB(255,0,0) 应为真红`);
+                
+                // 边界值测试：RGB(240,15,15) 应该是真红
+                const test2 = isTrueRed(240, 15, 15, thresholds);
+                html += assert(test2, `第${i+1}局: RGB(240,15,15) 应为真红`);
+                
+                // 边界值测试：RGB(250,5,10) 应该是真红
+                const test3 = isTrueRed(250, 5, 10, thresholds);
+                html += assert(test3, `第${i+1}局: RGB(250,5,10) 应为真红`);
+                
+                // 边界值测试：RGB(239,0,0) 应该不是真红（如果redMin>=240）
+                const test4 = !isTrueRed(239, 0, 0, thresholds);
+                html += assert(test4, `第${i+1}局: RGB(239,0,0) 应为非真红 (R<${redMin})`);
+                
+                // 边界值测试：RGB(255,16,0) 应该不是真红（如果greenMax<16）
+                const test5 = !isTrueRed(255, 16, 0, thresholds);
+                html += assert(test5, `第${i+1}局: RGB(255,16,0) 应为非真红 (G>${greenMax})`);
+                
+                // 边界值测试：RGB(255,0,16) 应该不是真红（如果blueMax<16）
+                const test6 = !isTrueRed(255, 0, 16, thresholds);
+                html += assert(test6, `第${i+1}局: RGB(255,0,16) 应为非真红 (B>${blueMax})`);
+            }
+            
+            html += '</div>';
+            results.innerHTML += html;
+            return testFailCount === 0;
+        }
+        
+        function runVarianceTest() {
+            resetCounts();
+            const results = document.getElementById('testResults');
+            let html = '<div class="test-section"><h2>3. 随机差异测试（每局体验不同）</h2>';
+            
+            const uniqueRedMins = new Set();
+            const uniqueGreenMaxs = new Set();
+            const uniqueBlueMaxs = new Set();
+            
+            for (let i = 0; i < 100; i++) {
+                const t = generateThresholds();
+                uniqueRedMins.add(t.redMin);
+                uniqueGreenMaxs.add(t.greenMax);
+                uniqueBlueMaxs.add(t.blueMax);
+            }
+            
+            html += assert(uniqueRedMins.size > 1, `redMin 生成了 ${uniqueRedMins.size} 种不同值`);
+            html += assert(uniqueGreenMaxs.size > 1, `greenMax 生成了 ${uniqueGreenMaxs.size} 种不同值`);
+            html += assert(uniqueBlueMaxs.size > 1, `blueMax 生成了 ${uniqueBlueMaxs.size} 种不同值`);
+            
+            html += `<h3>阈值分布统计：</h3>`;
+            html += `<pre>redMin 分布: ${JSON.stringify([...uniqueRedMins].sort((a,b)=>a-b))}</pre>`;
+            html += `<pre>greenMax 分布: ${JSON.stringify([...uniqueGreenMaxs].sort((a,b)=>a-b))}</pre>`;
+            html += `<pre>blueMax 分布: ${JSON.stringify([...uniqueBlueMaxs].sort((a,b)=>a-b))}</pre>`;
+            
+            html += '</div>';
+            results.innerHTML += html;
+            return testFailCount === 0;
+        }
+        
+        function runAllTests() {
+            document.getElementById('testResults').innerHTML = '';
+            resetCounts();
+            
+            const pass1 = runThresholdTest();
+            const pass2 = runBoundaryTest();
+            const pass3 = runVarianceTest();
+            
+            const allPass = pass1 && pass2 && pass3;
+            
+            const summaryClass = allPass ? 'all-pass' : 'has-fail';
+            const summaryText = allPass ? '🎉 所有测试通过！' : `❌ ${testFailCount} 个测试失败`;
+            
+            document.getElementById('testResults').innerHTML += `
+                <div class="summary ${summaryClass}">
+                    <h2>测试总结</h2>
+                    <p>通过: ${testPassCount} 个测试</p>
+                    <p>失败: ${testFailCount} 个测试</p>
+                    <p>${summaryText}</p>
+                    <p style="font-size:0.9em;color:#aaa;">每局游戏的真红判定标准都会随机变化，确保游戏体验的差异性！</p>
+                </div>
+            `;
+        }
+        
+        // 页面加载后自动运行测试
+        window.onload = function() {
+            runAllTests();
+        };
+    </script>
+</body>
+</html>
